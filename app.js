@@ -789,15 +789,35 @@ btnRestart.onclick = () => {
     currentCrop = { x: 0.0, y: 0.0, w: 1.0, h: 1.0 };
 };
 
-// Start Camera dengan MediaPipe Face Mesh
-const camera = new Camera(videoElement, {
-    onFrame: async () => {
-        await faceMesh.send({ image: videoElement });
-    },
-    width: 1280,
-    height: 720
-});
+// Start Camera (Native Browser getUserMedia - Kompatibel di file://, localhost, dan HTTPS)
+async function startCameraFeed() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        });
 
-camera.start().catch(err => {
-    alert("Kamera tidak dapat diakses: " + err.message);
-});
+        videoElement.srcObject = stream;
+        
+        videoElement.onloadedmetadata = () => {
+            videoElement.play();
+            
+            // Loop frame deteksi AI
+            async function loopFrame() {
+                if (videoElement.readyState >= 2) {
+                    await faceMesh.send({ image: videoElement });
+                }
+                requestAnimationFrame(loopFrame);
+            }
+            requestAnimationFrame(loopFrame);
+        };
+    } catch (err) {
+        console.error("Camera Error:", err);
+        alert("Gagal membuka kamera: " + err.message + "\n\nPastikan kamera tidak sedang dipakai aplikasi lain (VS Code, Zoom, Python, dll).");
+    }
+}
+
+startCameraFeed();
