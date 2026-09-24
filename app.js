@@ -136,7 +136,7 @@ const tabPanes = document.querySelectorAll('.tab-pane');
 tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
         const targetTabId = btn.getAttribute('data-tab');
-        
+
         tabBtns.forEach(b => b.classList.remove('active'));
         tabPanes.forEach(p => p.classList.remove('active'));
 
