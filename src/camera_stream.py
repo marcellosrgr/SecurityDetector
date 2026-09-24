@@ -58,6 +58,7 @@ class SmartZoomEngine:
         
         # 1. Deteksi Wajah
         face_norm_box = self.face_tracker.detect_primary_face(frame_rgb)
+        self.has_face = face_norm_box is not None
         current_time = time.time()
 
         # 2. Tentukan Target Crop Box (x_target, y_target, w_target, h_target)

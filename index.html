@@ -3,652 +3,284 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Auto-Zoom & Auto-Centering Camera</title>
+    <title>AutoZoom & AI Vision Safety Hub</title>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- MediaPipe Camera & Face Detection CDN -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- MediaPipe Camera & Face Mesh CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-
-        body {
-            background-color: #0b0f19;
-            color: #e2e8f0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 24px;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 24px;
-        }
-
-        header h1 {
-            font-size: 1.9rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 6px;
-        }
-
-        header p {
-            color: #94a3b8;
-            font-size: 0.95rem;
-        }
-
-        .container {
-            display: flex;
-            flex-direction: row;
-            gap: 24px;
-            max-width: 1200px;
-            width: 100%;
-            justify-content: center;
-            align-items: flex-start;
-        }
-
-        @media (max-width: 900px) {
-            .container {
-                flex-direction: column;
-                align-items: center;
-            }
-        }
-
-        /* Viewport Canvas */
-        .video-container {
-            position: relative;
-            background: #000;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
-            width: 720px;
-            max-width: 100%;
-            aspect-ratio: 16 / 9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1); /* Mirror view */
-        }
-
-        /* Video element tersembunyi sebagai feed input */
-        #webcam {
-            display: none;
-        }
-
-        /* Overlay Status & FPS */
-        .overlay-badges {
-            position: absolute;
-            top: 14px;
-            left: 14px;
-            display: flex;
-            gap: 10px;
-            z-index: 10;
-        }
-
-        .badge {
-            background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .badge .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #22c55e;
-            box-shadow: 0 0 8px #22c55e;
-        }
-
-        .badge .dot.searching {
-            background-color: #eab308;
-            box-shadow: 0 0 8px #eab308;
-        }
-
-        .badge.fps-badge {
-            color: #38bdf8;
-        }
-
-        /* Controls Panel */
-        .controls-card {
-            background: #131b2e;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 24px;
-            width: 360px;
-            max-width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-        }
-
-        .controls-card h2 {
-            font-size: 1.15rem;
-            font-weight: 600;
-            color: #f8fafc;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            padding-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .control-header {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: #cbd5e1;
-        }
-
-        .control-value {
-            color: #38bdf8;
-            font-weight: 600;
-        }
-
-        input[type="range"] {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 6px;
-            border-radius: 4px;
-            background: #25334d;
-            outline: none;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #38bdf8;
-            cursor: pointer;
-            box-shadow: 0 0 8px #38bdf8;
-            transition: transform 0.1s;
-        }
-
-        input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.2);
-        }
-
-        /* Toggle Switch */
-        .toggle-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.9rem;
-            color: #e2e8f0;
-            font-weight: 500;
-        }
-
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider-round {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #334155;
-            transition: .3s;
-            border-radius: 24px;
-        }
-
-        .slider-round:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .3s;
-            border-radius: 50%;
-        }
-
-        input:checked + .slider-round {
-            background-color: #38bdf8;
-        }
-
-        input:checked + .slider-round:before {
-            transform: translateX(20px);
-        }
-
-        .btn-action {
-            background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s, transform 0.1s;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-action:hover {
-            opacity: 0.95;
-            transform: translateY(-1px);
-        }
-
-        .btn-action:active {
-            transform: translateY(0);
-        }
-
-        .instruction-box {
-            background: rgba(30, 41, 59, 0.5);
-            border-radius: 8px;
-            padding: 12px;
-            font-size: 0.8rem;
-            color: #94a3b8;
-            line-height: 1.4;
-        }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <!-- MQTT.js CDN -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <header>
-        <h1>📷 Smart Auto-Zoom & Centering Camera</h1>
-        <p>Real-time AI Face Tracking, Smart Digital Crop & Smooth PTZ Interpolation</p>
-    </header>
-
-    <div class="container">
-        <!-- Kamera Viewport -->
-        <div class="video-container">
-            <div class="overlay-badges">
-                <div class="badge" id="trackingStatus">
-                    <span class="dot" id="statusDot"></span>
-                    <span id="statusText">Mencari Wajah...</span>
-                </div>
-                <div class="badge fps-badge" id="fpsDisplay">FPS: 0</div>
-            </div>
-
-            <video id="webcam" playsinline autoplay muted></video>
-            <canvas id="outputCanvas"></canvas>
-        </div>
-
-        <!-- Panel Kontrol -->
-        <div class="controls-card">
-            <h2>⚙️ Pengaturan Kamera</h2>
-
-            <div class="toggle-row">
-                <span>🔍 Auto-Zoom & Center</span>
-                <label class="switch">
-                    <input type="checkbox" id="toggleAutoZoom" checked>
-                    <span class="slider-round"></span>
-                </label>
-            </div>
-
-            <div class="control-group">
-                <div class="control-header">
-                    <span>Maksimum Zoom (Ultra Zoom)</span>
-                    <span class="control-value" id="maxZoomVal">3.5x</span>
-                </div>
-                <input type="range" id="sliderMaxZoom" min="1.0" max="8.0" step="0.1" value="3.5">
-            </div>
-
-            <div class="control-group">
-                <div class="control-header">
-                    <span>Kehalusan Transisi (LERP)</span>
-                    <span class="control-value" id="lerpVal">0.09</span>
-                </div>
-                <input type="range" id="sliderLerp" min="0.02" max="0.30" step="0.01" value="0.09">
-            </div>
-
-            <div class="control-group">
-                <div class="control-header">
-                    <span>Margin Kepala (Padding Fokus)</span>
-                    <span class="control-value" id="paddingVal">1.3x</span>
-                </div>
-                <input type="range" id="sliderPadding" min="0.8" max="2.5" step="0.1" value="1.3">
-            </div>
-
-            <div class="toggle-row">
-                <span>🟩 Debug Grid & Box</span>
-                <label class="switch">
-                    <input type="checkbox" id="toggleDebug">
-                    <span class="slider-round"></span>
-                </label>
-            </div>
-
-            <button class="btn-action" id="btnRestart">🔄 Reset Frame Penuh</button>
-
-            <div class="instruction-box">
-                💡 <b>Petunjuk:</b> Aplikasi ini berjalan 100% langsung di browser Anda menggunakan AI MediaPipe tanpa perlu install Python apapun.
+    <!-- Modern App Navigation Header -->
+    <nav class="app-nav">
+        <div class="nav-brand">
+            <div class="brand-logo">🛡️</div>
+            <div class="brand-text">
+                <h1>AutoZoom <span>AI Hub</span></h1>
+                <p>Smart PTZ Camera, Eyelid Anti-Drowsy & Sound Safety</p>
             </div>
         </div>
-    </div>
+        <div class="nav-status">
+            <div class="status-pill" id="navMqttPill">
+                <span class="status-indicator-dot" id="navMqttDot"></span>
+                <span id="mqttStatusBadge">Connecting...</span>
+            </div>
+            <div class="status-pill fps-pill">
+                <span id="fpsDisplay">FPS: 0</span>
+            </div>
+        </div>
+    </nav>
 
-    <script>
-        // Inisialisasi Elemen
-        const videoElement = document.getElementById('webcam');
-        const canvasElement = document.getElementById('outputCanvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const statusText = document.getElementById('statusText');
-        const statusDot = document.getElementById('statusDot');
-        const fpsDisplay = document.getElementById('fpsDisplay');
+    <!-- Main Workspace Dashboard -->
+    <main class="dashboard-grid">
+        
+        <!-- Kolom Kiri: Kamera Viewport Utama & Decibel Live Monitor -->
+        <section class="viewport-section">
+            
+            <!-- Video Kamera Card -->
+            <div class="card video-card">
+                <div class="video-container">
+                    <!-- Overlay Top Badges -->
+                    <div class="overlay-badges">
+                        <div class="glass-badge" id="trackingStatus">
+                            <span class="dot" id="statusDot"></span>
+                            <span id="statusText">Mencari Wajah...</span>
+                        </div>
+                        <div class="glass-badge" id="drowsyBadge">
+                            MELEK
+                        </div>
+                    </div>
 
-        // Parameter Pengaturan
-        const toggleAutoZoom = document.getElementById('toggleAutoZoom');
-        const sliderMaxZoom = document.getElementById('sliderMaxZoom');
-        const sliderLerp = document.getElementById('sliderLerp');
-        const sliderPadding = document.getElementById('sliderPadding');
-        const toggleDebug = document.getElementById('toggleDebug');
-        const btnRestart = document.getElementById('btnRestart');
+                    <!-- Modal Verifikasi Anti-Kantuk (Emergency Pop-up) -->
+                    <div id="drowsyModal" class="drowsy-modal-overlay" style="display: none;">
+                        <div class="drowsy-modal-content">
+                            <div class="drowsy-modal-icon">🥱 ⚠️</div>
+                            <h2>PERINGATAN KANTUK!</h2>
+                            <p>
+                                Kelopak mata terdeteksi terpejam / mengantuk.<br>
+                                Tekan tombol di bawah untuk verifikasi kesadaran dan mematikan alarm:
+                            </p>
+                            <button id="btnDismissDrowsy" class="btn-wake-up">
+                                ⚡ SAYA SUDAH MELEK & TERJAGA! ⚡
+                            </button>
+                        </div>
+                    </div>
 
-        const maxZoomVal = document.getElementById('maxZoomVal');
-        const lerpVal = document.getElementById('lerpVal');
-        const paddingVal = document.getElementById('paddingVal');
+                    <video id="webcam" playsinline autoplay muted></video>
+                    <canvas id="outputCanvas"></canvas>
+                </div>
+            </div>
 
-        // Event listener slider UI
-        sliderMaxZoom.oninput = () => maxZoomVal.innerText = `${parseFloat(sliderMaxZoom.value).toFixed(1)}x`;
-        sliderLerp.oninput = () => lerpVal.innerText = parseFloat(sliderLerp.value).toFixed(2);
-        sliderPadding.oninput = () => paddingVal.innerText = `${parseFloat(sliderPadding.value).toFixed(1)}x`;
+            <!-- Sound & Decibel Meter Compact Card -->
+            <div class="card sound-card">
+                <div class="card-header-clean">
+                    <div class="card-title-wrap">
+                        <span class="card-icon">🎙️</span>
+                        <div>
+                            <h3>Noise & Decibel Monitor</h3>
+                            <p>Analisis kebisingan ruangan real-time via Web Audio</p>
+                        </div>
+                    </div>
+                    <span id="noiseAlertBadge" class="badge-tag tag-success">NORMAL</span>
+                </div>
 
-        // State Auto-Zoom & LERP
-        let currentCrop = { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }; // Normalized 0..1
-        let lastFaceSeenTime = Date.now();
-        const GRACE_PERIOD_MS = 2000;
+                <div class="noise-widget">
+                    <div class="db-circle" id="dbCircle">
+                        <div class="db-value" id="dbDisplay">0.0</div>
+                        <div class="db-unit">dB</div>
+                    </div>
 
-        // FPS Calculation
-        let frameCount = 0;
-        let lastFpsUpdate = performance.now();
+                    <div class="meter-details">
+                        <div class="meter-info-row">
+                            <span>0 dB (Hening)</span>
+                            <span id="thresholdLabel" class="highlight-txt">Ambang: 70 dB</span>
+                            <span>120 dB (Bising)</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" id="soundBar"></div>
+                            <div class="bar-threshold-marker" id="thresholdMarker" style="left: 58.3%;"></div>
+                        </div>
 
-        // Helper LERP
-        function lerp(start, end, factor) {
-            return start + (end - start) * factor;
-        }
+                        <div class="noise-controls-row">
+                            <button class="btn-clean btn-primary-clean" id="btnToggleMic">🎙️ Aktifkan Mikrofon</button>
+                            <button class="btn-clean btn-secondary-clean" id="btnCalibrateMic">⚖️ Kalibrasi Ruangan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-        // Setup MediaPipe Face Detection
-        const faceDetection = new FaceDetection({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
-        });
+        </section>
 
-        faceDetection.setOptions({
-            model: 'short',
-            minDetectionConfidence: 0.5
-        });
+        <!-- Kolom Kanan: Panel Kontrol & Pengaturan Tabular -->
+        <aside class="controls-section">
+            
+            <!-- Navigation Tabs -->
+            <div class="tab-header">
+                <button class="tab-btn active" data-tab="tab-vision">🔍 AutoZoom</button>
+                <button class="tab-btn" data-tab="tab-drowsy">🥱 Anti-Kantuk</button>
+                <button class="tab-btn" data-tab="tab-noise">🔊 Kebisingan</button>
+                <button class="tab-btn" data-tab="tab-iot">📡 ESP32 & MQTT</button>
+            </div>
 
-        faceDetection.onResults(onResults);
+            <!-- Tab 1: Vision AutoZoom -->
+            <div class="card tab-pane active" id="tab-vision">
+                <div class="panel-header">
+                    <h4>Smart Face Auto-Zoom</h4>
+                    <p>Digital PTZ LERP Interpolation & Face Centering</p>
+                </div>
 
-        function onResults(results) {
-            // Update FPS
-            frameCount++;
-            const now = performance.now();
-            if (now - lastFpsUpdate >= 500) {
-                const fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
-                fpsDisplay.innerText = `FPS: ${fps}`;
-                frameCount = 0;
-                lastFpsUpdate = now;
-            }
+                <div class="switch-row">
+                    <div class="switch-info">
+                        <strong>Aktifkan Auto-Zoom</strong>
+                        <small>Memusatkan dan memperbesar subjek secara dinamis</small>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleAutoZoom" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
 
-            const videoW = videoElement.videoWidth;
-            const videoH = videoElement.videoHeight;
-            if (!videoW || !videoH) return;
+                <div class="range-group">
+                    <div class="range-label-row">
+                        <span>Maksimum Zoom</span>
+                        <span class="range-value" id="maxZoomVal">3.5x</span>
+                    </div>
+                    <input type="range" id="sliderMaxZoom" min="1.0" max="8.0" step="0.1" value="3.5">
+                </div>
 
-            if (canvasElement.width !== videoW || canvasElement.height !== videoH) {
-                canvasElement.width = videoW;
-                canvasElement.height = videoH;
-            }
+                <div class="range-group">
+                    <div class="range-label-row">
+                        <span>Kehalusan Kamera (LERP)</span>
+                        <span class="range-value" id="lerpVal">0.09</span>
+                    </div>
+                    <input type="range" id="sliderLerp" min="0.02" max="0.30" step="0.01" value="0.09">
+                </div>
 
-            const isAutoZoom = toggleAutoZoom.checked;
-            const maxZoom = parseFloat(sliderMaxZoom.value);
-            const lerpFactor = parseFloat(sliderLerp.value);
-            const headPadding = parseFloat(sliderPadding.value);
-            const isDebug = toggleDebug.checked;
+                <div class="range-group">
+                    <div class="range-label-row">
+                        <span>Margin Kepala (Padding)</span>
+                        <span class="range-value" id="paddingVal">1.3x</span>
+                    </div>
+                    <input type="range" id="sliderPadding" min="0.8" max="2.5" step="0.1" value="1.3">
+                </div>
 
-            let targetCrop = { x: 0.0, y: 0.0, w: 1.0, h: 1.0 };
-            const detections = results.detections;
+                <div class="form-group-clean mt-2">
+                    <label>Mode Pemicu Kamera (Buzzer / LED)</label>
+                    <select id="mqttTriggerMode" class="select-clean">
+                        <option value="none">❌ Nonaktif</option>
+                        <option value="face_present" selected>🔔 Bunyi jika ADA Wajah</option>
+                        <option value="face_absent">🔕 Bunyi jika TIDAK ADA Wajah</option>
+                    </select>
+                </div>
 
-            if (detections && detections.length > 0 && isAutoZoom) {
-                lastFaceSeenTime = Date.now();
-                const faceCount = detections.length;
+                <button class="btn-clean btn-secondary-clean w-100 mt-3" id="btnRestart">🔄 Reset Frame Kamera</button>
+            </div>
 
-                if (faceCount >= 2) {
-                    statusDot.className = "dot";
-                    statusText.innerText = `Mode Grup (${faceCount} Wajah) - Zoom Out`;
-                } else {
-                    statusDot.className = "dot";
-                    statusText.innerText = "Wajah Terkunci";
-                }
+            <!-- Tab 2: Drowsiness Settings -->
+            <div class="card tab-pane" id="tab-drowsy">
+                <div class="panel-header">
+                    <h4>Eyelid Drowsiness Safety</h4>
+                    <p>Deteksi kelopak mata atas & bawah (Eye Aspect Ratio)</p>
+                </div>
 
-                const aspectRatio = videoW / videoH;
-                let targetX, targetY, targetCropW, targetCropH;
+                <div class="switch-row">
+                    <div class="switch-info">
+                        <strong>Anti-Drowsiness Alert</strong>
+                        <small>Deteksi mata terpejam dan picu alarm darurat</small>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleDrowsy" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
 
-                if (faceCount === 1) {
-                    // === MODE 1 WAJAH: Close-up Zoom In ===
-                    const bBox = detections[0].boundingBox;
-                    const fx = bBox.xCenter - bBox.width / 2;
-                    const fy = bBox.yCenter - bBox.height / 2;
-                    const fw = bBox.width;
-                    const fh = bBox.height;
+                <div class="range-group">
+                    <div class="range-label-row">
+                        <span>Ambang Kelopak (EAR Threshold)</span>
+                        <span class="range-value highlight-warn" id="drowsyThresholdVal">0.22</span>
+                    </div>
+                    <input type="range" id="sliderDrowsyThreshold" min="0.10" max="0.40" step="0.01" value="0.22">
+                    <small class="helper-text">Nilai &lt; threshold dihitung sebagai mata terpejam</small>
+                </div>
 
-                    const faceCenterX = bBox.xCenter;
-                    const faceCenterY = bBox.yCenter;
+                <div class="range-group">
+                    <div class="range-label-row">
+                        <span>Batas Waktu Terpejam (Toleransi)</span>
+                        <span class="range-value" id="drowsyTimeVal">1.5 detik</span>
+                    </div>
+                    <input type="range" id="sliderDrowsyTime" min="0.5" max="3.5" step="0.1" value="1.5">
+                </div>
 
-                    targetCropH = Math.max(fh * headPadding, 0.15);
-                    targetCropW = targetCropH * aspectRatio;
+                <div class="switch-row mt-2">
+                    <div class="switch-info">
+                        <strong>Alarm Audio Browser</strong>
+                        <small>Bunyikan nada peringatan saat kantuk terdeteksi</small>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleDrowsySound" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+            </div>
 
-                    if (targetCropW < fw * headPadding) {
-                        targetCropW = fw * headPadding;
-                        targetCropH = targetCropW / aspectRatio;
-                    }
+            <!-- Tab 3: Noise Settings -->
+            <div class="card tab-pane" id="tab-noise">
+                <div class="panel-header">
+                    <h4>Noise Threshold & Sensitivity</h4>
+                    <p>Ambang batas kebisingan lingkungan</p>
+                </div>
 
-                    const minCropW = 1.0 / maxZoom;
-                    const minCropH = minCropW / aspectRatio;
+                <div class="range-group">
+                    <div class="range-label-row">
+                        <span>Batas Alarm Desibel</span>
+                        <span class="range-value highlight-danger" id="thresholdVal">70 dB</span>
+                    </div>
+                    <input type="range" id="sliderThreshold" min="30" max="110" step="1" value="70">
+                </div>
 
-                    targetCropW = Math.min(1.0, Math.max(targetCropW, minCropW));
-                    targetCropH = Math.min(1.0, Math.max(targetCropH, minCropH));
+                <div class="range-group">
+                    <div class="range-label-row">
+                        <span>Sensitivitas Input Mikrofon</span>
+                        <span class="range-value" id="sensVal">1.0x</span>
+                    </div>
+                    <input type="range" id="sliderSensitivity" min="0.5" max="3.0" step="0.1" value="1.0">
+                </div>
+            </div>
 
-                    targetX = faceCenterX - targetCropW / 2;
-                    targetY = faceCenterY - targetCropH / 2;
-                } else {
-                    // === MODE MULTI WAJAH (>= 2 Wajah): Otomatis Zoom Out & Group Centering ===
-                    // Hitung bounding box luar yang mencakup semua wajah
-                    let minX = 1.0, minY = 1.0, maxX = 0.0, maxY = 0.0;
-                    for (let d of detections) {
-                        const b = d.boundingBox;
-                        const bx1 = b.xCenter - b.width / 2;
-                        const by1 = b.yCenter - b.height / 2;
-                        const bx2 = bx1 + b.width;
-                        const by2 = by1 + b.height;
+            <!-- Tab 4: MQTT & ESP32 Hub -->
+            <div class="card tab-pane" id="tab-iot">
+                <div class="panel-header">
+                    <h4>IoT & ESP32-C3 Gateway</h4>
+                    <p>Integrasi nirkabel MQTT untuk Buzzer & On-board LED</p>
+                </div>
 
-                        if (bx1 < minX) minX = bx1;
-                        if (by1 < minY) minY = by1;
-                        if (bx2 > maxX) maxX = bx2;
-                        if (by2 > maxY) maxY = by2;
-                    }
+                <div class="form-group-clean">
+                    <label>Broker WebSocket URL</label>
+                    <input type="text" id="mqttHost" class="input-clean" value="wss://broker.emqx.io:8084/mqtt">
+                </div>
 
-                    const groupW = maxX - minX;
-                    const groupH = maxY - minY;
-                    const groupCenterX = minX + groupW / 2;
-                    const groupCenterY = minY + groupH / 2;
+                <div class="form-group-clean">
+                    <label>Topik MQTT</label>
+                    <div class="topic-inputs">
+                        <input type="text" id="mqttTopicZoom" class="input-clean mb-1" value="autozoom/buzzer" placeholder="Topik Kamera">
+                        <input type="text" id="mqttTopicNoise" class="input-clean mb-1" value="noisedetector/buzzer" placeholder="Topik Noise">
+                        <input type="text" id="mqttTopicDrowsy" class="input-clean" value="autozoom/drowsy" placeholder="Topik Drowsy">
+                    </div>
+                </div>
 
-                    // Berikan padding grup ekstra luas agar kedua wajah nyaman terlihat (zoom out)
-                    const groupPadding = Math.max(headPadding, 1.8);
-                    targetCropH = Math.max(groupH * groupPadding, 0.45);
-                    targetCropW = targetCropH * aspectRatio;
+                <button class="btn-clean btn-primary-clean w-100 mt-2" id="btnConnectMqtt">⚡ Hubungkan MQTT</button>
+            </div>
 
-                    if (targetCropW < groupW * groupPadding) {
-                        targetCropW = groupW * groupPadding;
-                        targetCropH = targetCropW / aspectRatio;
-                    }
+        </aside>
+    </main>
 
-                    // Batasi zoom out grup maksimal 1.0 (full frame)
-                    targetCropW = Math.min(1.0, Math.max(targetCropW, 0.35));
-                    targetCropH = Math.min(1.0, Math.max(targetCropH, 0.35 / aspectRatio));
-
-                    targetX = groupCenterX - targetCropW / 2;
-                    targetY = groupCenterY - targetCropH / 2;
-                }
-
-                targetX = Math.max(0, Math.min(1.0 - targetCropW, targetX));
-                targetY = Math.max(0, Math.min(1.0 - targetCropH, targetY));
-
-                targetCrop = { x: targetX, y: targetY, w: targetCropW, h: targetCropH };
-            } else {
-                if (!isAutoZoom || (Date.now() - lastFaceSeenTime > GRACE_PERIOD_MS)) {
-                    statusDot.className = "dot searching";
-                    statusText.innerText = isAutoZoom ? "Mencari Wajah..." : "Auto-Zoom Mati";
-                    targetCrop = { x: 0.0, y: 0.0, w: 1.0, h: 1.0 };
-                } else {
-                    targetCrop = { ...currentCrop };
-                }
-            }
-
-            // Interpolasi LERP halus
-            currentCrop.x = lerp(currentCrop.x, targetCrop.x, lerpFactor);
-            currentCrop.y = lerp(currentCrop.y, targetCrop.y, lerpFactor);
-            currentCrop.w = lerp(currentCrop.w, targetCrop.w, lerpFactor);
-            currentCrop.h = lerp(currentCrop.h, targetCrop.h, lerpFactor);
-
-            // Bersihkan Canvas
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-            // Digital Crop & Render ke canvas
-            const sx = currentCrop.x * videoW;
-            const sy = currentCrop.y * videoH;
-            const sw = currentCrop.w * videoW;
-            const sh = currentCrop.h * videoH;
-
-            canvasCtx.drawImage(
-                videoElement,
-                sx, sy, sw, sh,
-                0, 0, canvasElement.width, canvasElement.height
-            );
-
-            // Selalu Gambar Kotak Wajah (Futuristic Target Box) jika wajah terdeteksi
-            if (detections && detections.length > 0) {
-                for (let d of detections) {
-                    const bBox = d.boundingBox;
-                    const fx = bBox.xCenter - bBox.width / 2;
-                    const fy = bBox.yCenter - bBox.height / 2;
-                    const fw = bBox.width;
-                    const fh = bBox.height;
-
-                    // Konversi koordinat normalisasi webcam ke viewport crop canvas saat ini
-                    const boxCanvasX = ((fx - currentCrop.x) / currentCrop.w) * canvasElement.width;
-                    const boxCanvasY = ((fy - currentCrop.y) / currentCrop.h) * canvasElement.height;
-                    const boxCanvasW = (fw / currentCrop.w) * canvasElement.width;
-                    const boxCanvasH = (fh / currentCrop.h) * canvasElement.height;
-
-                    // Gambar Kotak Wajah Glowing Cyan / Hijau
-                    canvasCtx.save();
-                    canvasCtx.strokeStyle = "#00f2fe";
-                    canvasCtx.lineWidth = 3;
-                    canvasCtx.shadowColor = "#00f2fe";
-                    canvasCtx.shadowBlur = 10;
-                    
-                    // Sudut Kotak (Corner Accents)
-                    const cornerLen = Math.min(24, boxCanvasW * 0.25);
-                    
-                    // Top-Left
-                    canvasCtx.beginPath();
-                    canvasCtx.moveTo(boxCanvasX, boxCanvasY + cornerLen);
-                    canvasCtx.lineTo(boxCanvasX, boxCanvasY);
-                    canvasCtx.lineTo(boxCanvasX + cornerLen, boxCanvasY);
-                    canvasCtx.stroke();
-
-                    // Top-Right
-                    canvasCtx.beginPath();
-                    canvasCtx.moveTo(boxCanvasX + boxCanvasW - cornerLen, boxCanvasY);
-                    canvasCtx.lineTo(boxCanvasX + boxCanvasW, boxCanvasY);
-                    canvasCtx.lineTo(boxCanvasX + boxCanvasW, boxCanvasY + cornerLen);
-                    canvasCtx.stroke();
-
-                    // Bottom-Left
-                    canvasCtx.beginPath();
-                    canvasCtx.moveTo(boxCanvasX, boxCanvasY + boxCanvasH - cornerLen);
-                    canvasCtx.lineTo(boxCanvasX, boxCanvasY + boxCanvasH);
-                    canvasCtx.lineTo(boxCanvasX + cornerLen, boxCanvasY + boxCanvasH);
-                    canvasCtx.stroke();
-
-                    // Bottom-Right
-                    canvasCtx.beginPath();
-                    canvasCtx.moveTo(boxCanvasX + boxCanvasW - cornerLen, boxCanvasY + boxCanvasH);
-                    canvasCtx.lineTo(boxCanvasX + boxCanvasW, boxCanvasY + boxCanvasH);
-                    canvasCtx.lineTo(boxCanvasX + boxCanvasW, boxCanvasY + boxCanvasH - cornerLen);
-                    canvasCtx.stroke();
-
-                    // Garis pembungkus transparan
-                    canvasCtx.strokeStyle = "rgba(0, 242, 254, 0.4)";
-                    canvasCtx.lineWidth = 1;
-                    canvasCtx.shadowBlur = 0;
-                    canvasCtx.strokeRect(boxCanvasX, boxCanvasY, boxCanvasW, boxCanvasH);
-
-                    // Tag Label Wajah
-                    canvasCtx.fillStyle = "rgba(0, 242, 254, 0.85)";
-                    canvasCtx.fillRect(boxCanvasX, Math.max(0, boxCanvasY - 24), 105, 22);
-                    
-                    canvasCtx.fillStyle = "#0b0f19";
-                    canvasCtx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
-                    canvasCtx.fillText("TARGET ACQUIRED", boxCanvasX + 6, Math.max(16, boxCanvasY - 8));
-
-                    canvasCtx.restore();
-                }
-            }
-        }
-
-        btnRestart.onclick = () => {
-            currentCrop = { x: 0.0, y: 0.0, w: 1.0, h: 1.0 };
-        };
-
-        // Inisialisasi Kamera Browser
-        const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await faceDetection.send({ image: videoElement });
-            },
-            width: 1280,
-            height: 720
-        });
-
-        camera.start().catch(err => {
-            alert("Tidak dapat mengakses kamera: " + err.message + "\nPastikan Anda mengizinkan akses kamera pada browser.");
-        });
-    </script>
+    <!-- Script Logic -->
+    <script src="app.js"></script>
 </body>
 </html>
+
