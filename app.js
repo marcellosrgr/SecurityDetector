@@ -128,46 +128,20 @@ if (sliderDrowsyTime) {
 }
 
 // ==========================================
-// TAB NAVIGATION SWITCHER
-// ==========================================
-const tabBtns = document.querySelectorAll('.tab-btn');
-const tabPanes = document.querySelectorAll('.tab-pane');
-
-tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const targetTabId = btn.getAttribute('data-tab');
-
-        tabBtns.forEach(b => b.classList.remove('active'));
-        tabPanes.forEach(p => p.classList.remove('active'));
-
-        btn.classList.add('active');
-        const targetPane = document.getElementById(targetTabId);
-        if (targetPane) targetPane.classList.add('active');
-    });
-});
-
-// ==========================================
 // 3. MQTT LOGIC & PUBLISHER
 // ==========================================
-const navMqttDot = document.getElementById('navMqttDot');
-
 function updateMqttStatus(connected, text) {
-    if (mqttStatusBadge) mqttStatusBadge.innerText = text;
-    if (navMqttDot) {
-        if (connected) {
-            navMqttDot.className = "status-indicator-dot connected";
-        } else {
-            navMqttDot.className = "status-indicator-dot";
-        }
-    }
-    if (btnConnectMqtt) {
-        if (connected) {
-            btnConnectMqtt.innerText = "🔌 Putuskan MQTT";
-            btnConnectMqtt.style.background = "#dc2626";
-        } else {
-            btnConnectMqtt.innerText = "⚡ Hubungkan MQTT";
-            btnConnectMqtt.style.background = "linear-gradient(135deg, #3b82f6, #2563eb)";
-        }
+    mqttStatusBadge.innerText = text;
+    if (connected) {
+        mqttStatusBadge.style.background = "#15803d";
+        mqttStatusBadge.style.color = "#86efac";
+        btnConnectMqtt.innerText = "🔌 Putuskan MQTT";
+        btnConnectMqtt.style.background = "#dc2626";
+    } else {
+        mqttStatusBadge.style.background = "#334155";
+        mqttStatusBadge.style.color = "#cbd5e1";
+        btnConnectMqtt.innerText = "⚡ Hubungkan MQTT";
+        btnConnectMqtt.style.background = "#0284c7";
     }
 }
 
@@ -176,18 +150,14 @@ function connectMqttClient() {
         return;
     }
 
-    let brokerUrl = mqttHost.value.trim();
-    if (!brokerUrl) {
-        brokerUrl = "wss://broker.emqx.io:8084/mqtt";
-    }
-
+    const brokerUrl = mqttHost.value.trim();
     updateMqttStatus(false, "Connecting...");
 
     try {
         mqttClient = mqtt.connect(brokerUrl, {
             clientId: 'AutoZoomHub_' + Math.random().toString(16).substring(2, 10),
             clean: true,
-            connectTimeout: 6000,
+            connectTimeout: 5000,
             reconnectPeriod: 3000
         });
 
@@ -197,7 +167,7 @@ function connectMqttClient() {
         });
 
         mqttClient.on('error', (err) => {
-            console.warn("[MQTT] Percobaan koneksi:", err.message);
+            console.error("[MQTT] Error:", err);
             updateMqttStatus(false, "Error");
         });
 
@@ -241,7 +211,7 @@ function handleVisionBuzzerTrigger(hasFace) {
     else if (mode === "face_absent" && !hasFace) shouldBeep = true;
 
     const now = Date.now();
-    if (shouldBeep !== lastZoomBuzzerState) {
+    if (shouldBeep !== lastZoomBuzzerState || (now - lastZoomSendTime > 3000)) {
         lastZoomBuzzerState = shouldBeep;
         lastZoomSendTime = now;
         const payload = shouldBeep ? "BEEP_ON" : "BEEP_OFF";
@@ -253,26 +223,14 @@ function handleVisionBuzzerTrigger(hasFace) {
     }
 }
 
-// State Noise Hold Timer untuk Mencegah Spam Bising
-let noiseAlertStartTime = 0;
-let lastNoisePublishedState = null;
-
-// Publisher sinyal NoiseDetector (Hanya kirim saat Mic Aktif & Debounced)
+// Publisher sinyal NoiseDetector (Hanya kirim saat Mic Aktif)
 function handleNoiseBuzzerTrigger(isNoiseOverThreshold) {
     if (!mqttClient || !mqttClient.connected || !isMicActive) return;
     const now = Date.now();
-
-    // Jika bising terdeteksi, tahan status alarm minimal 1.2 detik agar tidak spam bolak-balik
-    if (isNoiseOverThreshold) {
-        noiseAlertStartTime = now;
-    }
-
-    const isEffectiveNoiseAlert = isNoiseOverThreshold || (now - noiseAlertStartTime < 1200);
-
-    if (isEffectiveNoiseAlert !== lastNoisePublishedState) {
-        lastNoisePublishedState = isEffectiveNoiseAlert;
+    if (isNoiseOverThreshold !== lastNoiseBuzzerState) {
+        lastNoiseBuzzerState = isNoiseOverThreshold;
         lastNoiseSendTime = now;
-        const payload = isEffectiveNoiseAlert ? "NOISE_ALERT" : "NOISE_CLEAR";
+        const payload = isNoiseOverThreshold ? "NOISE_ALERT" : "NOISE_CLEAR";
         const topic = (mqttTopicNoise && mqttTopicNoise.value.trim()) || "noisedetector/buzzer";
         mqttClient.publish(topic, payload, { qos: 0 }, (err) => {
             if (err) console.error("[MQTT] Gagal publish noise:", err);
@@ -447,7 +405,7 @@ const LEFT_EYE_INDICES = [362, 385, 386, 263, 374, 380];
 const RIGHT_EYE_INDICES = [33, 160, 158, 133, 153, 144];
 
 const faceMesh = new FaceMesh({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
 });
 
 faceMesh.setOptions({
@@ -787,46 +745,17 @@ function onResults(results) {
 
 btnRestart.onclick = () => {
     currentCrop = { x: 0.0, y: 0.0, w: 1.0, h: 1.0 };
-// Start Camera (Native Browser getUserMedia dengan Fallback Rendering Langsung)
-let isCameraStreamActive = false;
+};
 
-async function startCameraFeed() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: 'user'
-            },
-            audio: false
-        });
+// Start Camera dengan MediaPipe Face Mesh
+const camera = new Camera(videoElement, {
+    onFrame: async () => {
+        await faceMesh.send({ image: videoElement });
+    },
+    width: 1280,
+    height: 720
+});
 
-        videoElement.srcObject = stream;
-        
-        videoElement.onloadedmetadata = async () => {
-            await videoElement.play();
-            isCameraStreamActive = true;
-            
-            // Loop frame deteksi AI & rendering kontinu
-            let isProcessingFrame = false;
-            
-            async function loopFrame() {
-                if (videoElement.readyState >= 2) {
-                    if (!isProcessingFrame) {
-                        isProcessingFrame = true;
-                        faceMesh.send({ image: videoElement })
-                            .catch(e => console.warn("FaceMesh send warning:", e))
-                            .finally(() => { isProcessingFrame = false; });
-                    }
-                }
-                requestAnimationFrame(loopFrame);
-            }
-            requestAnimationFrame(loopFrame);
-        };
-    } catch (err) {
-        console.error("Camera Error:", err);
-        alert("Gagal membuka kamera: " + err.message + "\n\nPastikan kamera diizinkan (Allow) di browser.");
-    }
-}
-
-startCameraFeed();
+camera.start().catch(err => {
+    alert("Kamera tidak dapat diakses: " + err.message);
+});
