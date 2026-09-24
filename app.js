@@ -447,7 +447,7 @@ const LEFT_EYE_INDICES = [362, 385, 386, 263, 374, 380];
 const RIGHT_EYE_INDICES = [33, 160, 158, 133, 153, 144];
 
 const faceMesh = new FaceMesh({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`
 });
 
 faceMesh.setOptions({
