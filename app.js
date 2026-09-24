@@ -787,28 +787,37 @@ function onResults(results) {
 
 btnRestart.onclick = () => {
     currentCrop = { x: 0.0, y: 0.0, w: 1.0, h: 1.0 };
-};
+// Start Camera (Native Browser getUserMedia dengan Fallback Rendering Langsung)
+let isCameraStreamActive = false;
 
-// Start Camera (Native Browser getUserMedia - Kompatibel di file://, localhost, dan HTTPS)
 async function startCameraFeed() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
                 width: { ideal: 1280 },
-                height: { ideal: 720 }
+                height: { ideal: 720 },
+                facingMode: 'user'
             },
             audio: false
         });
 
         videoElement.srcObject = stream;
         
-        videoElement.onloadedmetadata = () => {
-            videoElement.play();
+        videoElement.onloadedmetadata = async () => {
+            await videoElement.play();
+            isCameraStreamActive = true;
             
-            // Loop frame deteksi AI
+            // Loop frame deteksi AI & rendering kontinu
+            let isProcessingFrame = false;
+            
             async function loopFrame() {
                 if (videoElement.readyState >= 2) {
-                    await faceMesh.send({ image: videoElement });
+                    if (!isProcessingFrame) {
+                        isProcessingFrame = true;
+                        faceMesh.send({ image: videoElement })
+                            .catch(e => console.warn("FaceMesh send warning:", e))
+                            .finally(() => { isProcessingFrame = false; });
+                    }
                 }
                 requestAnimationFrame(loopFrame);
             }
@@ -816,7 +825,7 @@ async function startCameraFeed() {
         };
     } catch (err) {
         console.error("Camera Error:", err);
-        alert("Gagal membuka kamera: " + err.message + "\n\nPastikan kamera tidak sedang dipakai aplikasi lain (VS Code, Zoom, Python, dll).");
+        alert("Gagal membuka kamera: " + err.message + "\n\nPastikan kamera diizinkan (Allow) di browser.");
     }
 }
 
